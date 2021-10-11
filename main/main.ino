@@ -29,13 +29,17 @@ unsigned long previousTime = 0;
 const long timeoutTime = 2000;
 
 TaskHandle_t tasks[N_TASKS];
-//TaskHandle_t RainbowTask;
-//TaskHandle_t ChaseTask;
-
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_LEDS, stripOutput, NEO_GRB + NEO_KHZ800);
 
 uint32_t wait_time = 10;
+int LedR = 0;
+int LedG = 179;
+int LedB = 255;
+
+int prevR;
+int prevG;
+int prevB;
 
 void setup() {
   strip.begin();
@@ -88,9 +92,12 @@ void setup() {
 
 void loop() {
   prevStripState = stripState;
+  prevR = LedR;
+  prevG = LedG;
+  prevB = LedB;
   handleWiFiClient();
 
-  if (prevStripState != stripState) {
+  if (prevStripState != stripState || prevR != LedR || prevG != LedG || prevB != LedB) {
     Serial.println("Deleting Task");
     for (int i = 0; i < N_TASKS; i++) {
       if (tasks[i] != NULL) {
@@ -104,7 +111,7 @@ void loop() {
         Serial.println("Starting Rainbow");
         vTaskResume(tasks[0]);
         break;
-      case ON: setAll(255, 0, 0); break;
+      case ON: setAll(LedR, LedG, LedB); break;
       case RAINBOW:
         Serial.println("Starting Rainbow");
         vTaskResume(tasks[1]);
@@ -156,6 +163,18 @@ void handleWiFiClient() {
               Serial.println("GPIO 16 on");
               stripState = RAINBOW;
             }
+            int clr_s_i = header.indexOf("color=%23");
+            if (clr_s_i >= 0) {
+              clr_s_i += 9;
+              // Get rid of '#' and convert it to integer
+              int number = (int) strtol( &header[clr_s_i], NULL, 16);
+
+              // Split them up into r, g, b values
+              LedR = number >> 16;
+              LedG = number >> 8 & 0xFF;
+              LedB = number & 0xFF;
+
+            }
 
             // Display the HTML web page
             client.println("<!DOCTYPE html><html>");
@@ -176,10 +195,17 @@ void handleWiFiClient() {
             // If the output26State is off, it displays the ON button
             client.println("<form action=\"/state\"><label for=\"state\">Choose a state:</label><select name=\"state\" id=\"state\">");
             for (int i = 0; i < N_STATES; i++) {
-              client.println(String("<option value=\"") + i + "\">" + stateNames[i] + "</option>");
+              if (i == stripState) {
+                client.println(String("<option value=\"") + i + "\" selected>" + stateNames[i] + "</option>");
+              }
+              else {
+                client.println(String("<option value=\"") + i + "\">" + stateNames[i] + "</option>");
+              }
             }
-            client.println("</select><br><br><input type=\"submit\" value=\"Submit\"></form>");
-
+            long RGB_hex = ((long)LedR << 16L) | ((long)LedG << 8L) | (long)LedB;
+            char RGB_hex_str[8];
+            sprintf(RGB_hex_str, "%06X", RGB_hex);
+            client.println(String("</select><br><br><input type='color' name='color' value='#") + RGB_hex_str + "'><br><br><input type=\"submit\" value=\"Submit\"></form>");
             client.println("</body></html>");
 
             // The HTTP response ends with another blank line
@@ -232,14 +258,11 @@ void rainbow(void * wait) {
 }
 
 void theaterChase(void * params) {
-  byte red = 255;
-  byte green = 0;
-  byte blue = 127;
   int SpeedDelay = 75;
   for (;;) { // Loop forever
     for (int q = 0; q < 3; q++) {
       for (int i = 0; i < N_LEDS; i = i + 3) {
-        setPixel(i + q, red, green, blue);  //turn every third pixel on
+        setPixel(i + q, (byte) LedR, (byte) LedG, (byte) LedB);  //turn every third pixel on
       }
       strip.show();
 
