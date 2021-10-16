@@ -1,7 +1,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <WiFi.h>
 
-#define N_LEDS 150
+#define N_LEDS 75
 #define N_STATES 4
 
 #define N_TASKS 2
